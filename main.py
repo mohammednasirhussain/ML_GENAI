@@ -1,113 +1,57 @@
-from openai import OpenAI
+import os
+
 import streamlit as st
+from dotenv import load_dotenv
+import google.generativeai as gen_ai
 
-st.title("MyBotGPT")
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Load environment variables
+load_dotenv()
 
-if "openai_model" not in st.session_state:
-    st.session_state["openai_model"] = "gpt-3.5-turbo"
+# Configure Streamlit page settings
+st.set_page_config(
+    page_title="ChatMNH",
+    page_icon=":thought_balloon:",  # Favicon emoji
+    layout="centered",  # Page layout option
+)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Set up Google Gemini-Pro AI model
+gen_ai.configure(api_key=GOOGLE_API_KEY)
+model = gen_ai.GenerativeModel('gemini-2.0-flash-exp')
 
-if prompt := st.chat_input("Whatz UP?"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
+# Function to translate roles between Gemini-Pro and Streamlit terminology
+def translate_role_for_streamlit(user_role):
+    if user_role == "model":
+        return "assistant"
+    else:
+        return user_role
+
+
+# Initialize chat session in Streamlit if not already present
+if "chat_session" not in st.session_state:
+    st.session_state.chat_session = model.start_chat(history=[])
+
+
+# Display the chatbot's title on the page
+st.title("🤖 Gemini-2.0-flash - ChatBot")
+
+# Display the chat history
+for message in st.session_state.chat_session.history:
+    with st.chat_message(translate_role_for_streamlit(message.role)):
+        st.markdown(message.parts[0].text)
+
+# Input field for user's message
+user_prompt = st.chat_input("Ask anything...")
+if user_prompt:
+    # Add user's message to chat and display it
+    st.chat_message("user").markdown(user_prompt)
+
+    # Send user's message to Gemini-Pro and get the response
+    gemini_response = st.session_state.chat_session.send_message(user_prompt)
+
+    # Display Gemini-Pro's response
     with st.chat_message("assistant"):
-        stream = client.chat.completions.create(
-            model=st.session_state["openai_model"],
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True
-        )
-        response = st.write_stream(stream)
-    st.session_state.messages.append({"role": "assistant", "content": response})
-
-
-
-# import streamlit as st
-# import random
-# import time
-
-# # Streamed response emulator
-# def response_generator():
-#     response = random.choice(
-#         [
-#             "Hello there! How can I assist you today?",
-#             "Hi, Human! Is there anything I can help you with?",
-#             "Do you need help?"
-#         ]
-#     )
-#     for word in response.split():
-#         yield word + " "
-#         time.sleep(0.05)
-    
-# st.title("Simple Chat")
-
-# #Initialize chat history
-# if "message" not in st.session_state:
-#     st.session_state.message = []
-
-# #Display chat messages from history on app rerun
-# for message in st.session_state.message:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-
-# #Accept user input
-# if prompt := st.chat_input("Whatz Up?"):
-#     #add user message to chat history
-#     st.session_state.message.append({"role": "user", "content": prompt})
-#     #Display user message in chat message container
-#     with st.chat_message("user"):
-#         st.markdown(prompt)
-
-#     #Display assistan response in chat message container
-#     with st.chat_message("assistant"):
-#         response = st.write_stream(response_generator())
-#     #Add assistant response to chat history
-#     st.session_state.message.append({"role": "assistant", "content": response})
-
-
-
-#part1
-# with st.chat_message("User"):
-#     st.write("Heyllooo!!")
-#part2
-# prompt = st.chat_input("Say something...")
-# if prompt:
-#     st.write(f"User has sent the following prompt:{prompt}")
-#part3
-
-# st.title("Echo Bot")
-
-# #Initialize chat history
-# if "message" not in st.session_state:
-#     st.session_state.message = []
-
-# #Display chat messages from history on app rerun
-# for message in st.session_state.message:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-
-# #React to user input
-# if prompt := st.chat_input("What is up?"):
-#     #Display user message in chat message container
-#     st.chat_message("user").markdown(prompt)
-#     #Add user message to chat history
-#     st.session_state.message.append({"role": "user", "content": prompt})
-
-#     response = f"Echo: {prompt}"
-#     #Display assistant response in chat message container
-#     with st.chat_message("assistant"):
-#         st.markdown(response)
-#     #Add assistant response t chat history
-#     st.session_state.message.append({"role": "assistant", "content": response})
+        st.markdown(gemini_response.text)
